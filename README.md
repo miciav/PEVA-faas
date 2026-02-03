@@ -1,6 +1,6 @@
-# DFaaS Plugin
+# PEVA-faas Plugin
 
-The DFaaS plugin reproduces the legacy sampling workflow using:
+The PEVA-faas plugin reproduces the legacy sampling workflow using:
 - OpenFaaS functions as the target workload.
 - k6 for load generation.
 - Prometheus + exporters for metrics.
@@ -16,7 +16,7 @@ persists legacy-compatible CSV outputs.
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                           Controller Host                                │
 │  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐     │
-│  │  DFaaS Generator │───▶│  Ansible Runner │───▶│ Prometheus Client│    │
+│  │  PEVA-faas Generator │───▶│  Ansible Runner │───▶│ Prometheus Client│    │
 │  └─────────────────┘    └─────────────────┘    └─────────────────┘     │
 └─────────────────────────────────┬───────────────────────┬───────────────┘
                                   │ SSH                   │ HTTP
@@ -41,7 +41,7 @@ persists legacy-compatible CSV outputs.
 ### Components
 
 **Controller host** (where the runner executes):
-- Runs the DFaaS generator locally.
+- Runs the PEVA-faas generator locally.
 - Invokes Ansible to provision the target and k6 hosts.
 - Pulls k6 summaries via Ansible fetch.
 - Queries Prometheus over HTTP.
@@ -163,7 +163,7 @@ ansible-playbook -i k6_inventory.ini lb_plugins/plugins/peva_faas/ansible/setup_
 ```
 
 Key variables:
-- `k6_workspace_root` (default `/home/<k6_user>/.dfaas-k6`)
+- `k6_workspace_root` (default `/home/<k6_user>/.peva_faas-k6`)
 - `k6_version` (default `0.49.0`)
 
 Verification:
@@ -181,7 +181,7 @@ Create a YAML configuration file (see Configuration reference below) or use the 
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         DFaaS Generator Run Flow                         │
+│                         PEVA-faas Generator Run Flow                         │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  1. Load configuration                                                   │
 │     └─▶ Parse YAML/JSON config, validate settings                       │
@@ -252,20 +252,20 @@ Timeout at `max_wait_seconds`.
 The plugin can be run via the controller or directly via a BenchmarkConfig.
 
 Configuration is typically supplied via:
-- `config_path`: YAML/JSON file with `common` and `plugins.dfaas`.
+- `config_path`: YAML/JSON file with `common` and `plugins.peva_faas`.
 - or `options` in `user_defined` mode.
 
 Config precedence:
 1. `common` in the file.
-2. `plugins.dfaas` in the file.
+2. `plugins.peva_faas` in the file.
 3. Options passed alongside `config_path` (highest priority).
 
 ## Configuration reference
 
-All fields live under `plugins.dfaas` unless noted.
+All fields live under `plugins.peva_faas` unless noted.
 
 ### Core
-- `config_path` (Path, optional): YAML/JSON file with `common` + `plugins.dfaas`.
+- `config_path` (Path, optional): YAML/JSON file with `common` + `plugins.peva_faas`.
 - `output_dir` (Path, optional): override output directory for artifacts.
 - `run_id` (str, optional): identifier for the k6 workspace path.
 
@@ -274,7 +274,7 @@ All fields live under `plugins.dfaas` unless noted.
 - `k6_user` (str, default `ubuntu`): SSH user for k6 host.
 - `k6_ssh_key` (str, default `~/.ssh/id_rsa`): SSH private key.
 - `k6_port` (int, default 22): SSH port.
-- `k6_workspace_root` (str, default `/home/<k6_user>/.dfaas-k6`): workspace root on k6 host.
+- `k6_workspace_root` (str, default `/home/<k6_user>/.peva_faas-k6`): workspace root on k6 host.
 - `k6_outputs` (list[str], default empty): optional k6 `--out` targets (e.g. Loki).
 - `k6_tags` (map, default empty): additional k6 tags merged with run metadata.
 
@@ -341,7 +341,7 @@ common:
   timeout_buffer: 10
 
 plugins:
-  dfaas:
+  peva_faas:
     k6_host: "10.0.0.50"
     k6_user: "ubuntu"
     k6_ssh_key: "~/.ssh/id_rsa"
@@ -361,7 +361,7 @@ plugins:
     functions:
       - name: "figlet"
         method: "POST"
-        body: "Hello DFaaS!"
+        body: "Hello PEVA-faas!"
         headers:
           Content-Type: "text/plain"
         max_rate: 100
@@ -400,7 +400,7 @@ plugins:
 
 ## Outputs
 
-The generator emits results into the DFaaS output directory, resolved as:
+The generator emits results into the PEVA-faas output directory, resolved as:
 - `output_dir` if set in the config.
 - otherwise `<benchmark_results>/<workload_name>`, derived from the runner.
 
@@ -483,7 +483,7 @@ curl -X POST http://<target-ip>:31112/function/figlet -d "test"
 ssh k6-host k6 version
 
 # View k6 workspace
-ssh k6-host ls -la /home/<k6_user>/.dfaas-k6/
+ssh k6-host ls -la /home/<k6_user>/.peva_faas-k6/
 ```
 
 ### Debug mode
@@ -495,13 +495,13 @@ export LB_LOG_LEVEL=DEBUG
 
 ## Testing
 
-- Unit tests: `tests/unit/lb_plugins/test_dfaas_*`
-- Docker integration: `tests/integration/lb_plugins/test_dfaas_docker_integration.py`
-- Multipass e2e: `tests/e2e/test_dfaas_multipass_e2e.py` (creates two VMs)
+- Unit tests: `tests/unit/lb_plugins/test_peva_faas_*`
+- Docker integration: `tests/integration/lb_plugins/test_peva_faas_docker_integration.py`
+- Multipass e2e: `tests/e2e/test_peva_faas_multipass_e2e.py` (creates two VMs)
 
 Run unit tests:
 ```bash
-uv run pytest tests/unit/lb_plugins/test_dfaas*.py -v
+uv run pytest tests/unit/lb_plugins/test_peva_faas*.py -v
 ```
 
 ## Extending the plugin
