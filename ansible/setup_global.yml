@@ -14,10 +14,10 @@
   tasks:
     - name: Parse k6_host from config
       ansible.builtin.set_fact:
-        k6_host_address: "{{ (benchmark_config.plugin_settings.dfaas.k6_host | default('')) }}"
-        k6_user: "{{ (benchmark_config.plugin_settings.dfaas.k6_user | default('ubuntu')) }}"
-        k6_ssh_key: "{{ (benchmark_config.plugin_settings.dfaas.k6_ssh_key | default('')) }}"
-        k6_port: "{{ (benchmark_config.plugin_settings.dfaas.k6_port | default(22)) }}"
+        k6_host_address: "{{ (benchmark_config.plugin_settings.peva_faas.k6_host | default('')) }}"
+        k6_user: "{{ (benchmark_config.plugin_settings.peva_faas.k6_user | default('ubuntu')) }}"
+        k6_ssh_key: "{{ (benchmark_config.plugin_settings.peva_faas.k6_ssh_key | default('')) }}"
+        k6_port: "{{ (benchmark_config.plugin_settings.peva_faas.k6_port | default(22)) }}"
 
     - name: Add K6 host to inventory
       ansible.builtin.add_host:
@@ -59,13 +59,13 @@
 
     - name: Upload K6 SSH key to target
       ansible.builtin.copy:
-        src: "{{ (benchmark_config.plugin_settings.dfaas.k6_ssh_key | default('')) | regex_replace('^~', lookup('env', 'HOME')) }}"
-        dest: "{{ ansible_facts['env']['HOME'] }}/.ssh/dfaas_k6_key"
+        src: "{{ (benchmark_config.plugin_settings.peva_faas.k6_ssh_key | default('')) | regex_replace('^~', lookup('env', 'HOME')) }}"
+        dest: "{{ ansible_facts['env']['HOME'] }}/.ssh/peva_faas_k6_key"
         mode: "0600"
         owner: "{{ ansible_user }}"
       when:
-        - benchmark_config.plugin_settings.dfaas.k6_ssh_key is defined
-        - (benchmark_config.plugin_settings.dfaas.k6_ssh_key | default('') | length > 0)
+        - benchmark_config.plugin_settings.peva_faas.k6_ssh_key is defined
+        - (benchmark_config.plugin_settings.peva_faas.k6_ssh_key | default('') | length > 0)
 
     - name: Override k6_ssh_key path for remote execution
       ansible.builtin.set_fact:
@@ -73,14 +73,14 @@
           {{
             benchmark_config | combine({
               'plugin_settings': {
-                'dfaas': benchmark_config.plugin_settings.dfaas | combine({
-                  'k6_ssh_key': ansible_facts['env']['HOME'] ~ '/.ssh/dfaas_k6_key'
+                'peva_faas': benchmark_config.plugin_settings.peva_faas | combine({
+                  'k6_ssh_key': ansible_facts['env']['HOME'] ~ '/.ssh/peva_faas_k6_key'
                 })
               }
             }, recursive=True)
           }}
       when:
-        - benchmark_config.plugin_settings.dfaas.k6_ssh_key is defined
+        - benchmark_config.plugin_settings.peva_faas.k6_ssh_key is defined
 
     - name: Setup target infrastructure
       ansible.builtin.import_tasks: tasks/setup_target_tasks.yml

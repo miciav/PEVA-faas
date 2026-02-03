@@ -123,7 +123,7 @@
         openfaas_functions: >-
           {{
             (
-              (benchmark_config.plugin_settings | default({})).dfaas | default({})
+              (benchmark_config.plugin_settings | default({})).peva_faas | default({})
             )
             .functions | default([])
             | map(attribute='name')
