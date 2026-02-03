@@ -23,7 +23,7 @@ class DfaasLogManager:
     logger: logging.Logger
     k6_logger: logging.Logger = field(
         default_factory=lambda: logging.getLogger(
-            "lb_plugins.plugins.dfaas.services.k6_runner"
+            "lb_plugins.plugins.peva_faas.services.k6_runner"
         )
     )
     event_emitter: StdoutEmitter = field(default_factory=StdoutEmitter)

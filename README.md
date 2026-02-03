@@ -132,7 +132,7 @@ k6 ansible_host=<k6-ip> ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/
 ```bash
 ansible-playbook -i target_inventory.ini \
   -e '{"openfaas_functions":["figlet","env"]}' \
-  lb_plugins/plugins/dfaas/ansible/setup_target.yml
+  lb_plugins/plugins/peva_faas/ansible/setup_target.yml
 ```
 Note: `setup_target.yml` does not install k6.
 
@@ -153,13 +153,13 @@ To provision both the target and k6 hosts in one go, run:
 ```bash
 ansible-playbook -i target_inventory.ini \
   -e "benchmark_config=<path-to-benchmark-config>" \
-  lb_plugins/plugins/dfaas/ansible/setup_global.yml
+  lb_plugins/plugins/peva_faas/ansible/setup_global.yml
 ```
 
 ### Step 4: Setup k6 host
 
 ```bash
-ansible-playbook -i k6_inventory.ini lb_plugins/plugins/dfaas/ansible/setup_k6.yml
+ansible-playbook -i k6_inventory.ini lb_plugins/plugins/peva_faas/ansible/setup_k6.yml
 ```
 
 Key variables:
@@ -326,7 +326,7 @@ Validation:
 - `overload.replicas_overload_threshold` (int, default 15).
 
 ### Metrics and queries
-- `queries_path` (str, default `lb_plugins/plugins/dfaas/queries.yml`).
+- `queries_path` (str, default `lb_plugins/plugins/peva_faas/queries.yml`).
 - `scaphandre_enabled` (bool, default false).
 - `function_pid_regexes` (map, default empty): PID regex per function for power.
 
@@ -393,7 +393,7 @@ plugins:
       success_rate_function_min: 0.90
       replicas_overload_threshold: 15
 
-    queries_path: "lb_plugins/plugins/dfaas/queries.yml"
+    queries_path: "lb_plugins/plugins/peva_faas/queries.yml"
     deploy_functions: true
     scaphandre_enabled: false
 ```
