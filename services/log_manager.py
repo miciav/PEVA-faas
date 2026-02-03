@@ -47,12 +47,12 @@ class DfaasLogManager:
         self._jsonl_handler = attach_jsonl_handler(
             self.logger,
             output_dir=output_dir,
-            component="dfaas",
+            component="peva_faas",
             host=self.exec_ctx.host,
             run_id=run_id,
-            workload="dfaas",
+            workload="peva_faas",
             package="lb_plugins",
-            plugin="dfaas",
+            plugin="peva_faas",
             repetition=self.exec_ctx.repetition,
         )
         self._attach_loki_handler(run_id)
@@ -66,9 +66,9 @@ class DfaasLogManager:
             component="k6",
             host=self.exec_ctx.host,
             run_id=run_id,
-            workload="dfaas",
+            workload="peva_faas",
             package="lb_plugins",
-            plugin="dfaas",
+            plugin="peva_faas",
             repetition=self.exec_ctx.repetition,
         )
         self._attach_k6_loki_handler(run_id)
@@ -93,7 +93,7 @@ class DfaasLogManager:
         event = RunEvent(
             run_id=self._event_run_id,
             host=self.exec_ctx.host,
-            workload="dfaas",
+            workload="peva_faas",
             repetition=self.exec_ctx.repetition,
             total_repetitions=self.exec_ctx.total_repetitions,
             status="running",
@@ -115,23 +115,23 @@ class DfaasLogManager:
             enabled=loki_cfg.enabled,
             endpoint=loki_cfg.endpoint,
             labels=loki_cfg.labels,
-            component="dfaas",
+            component="peva_faas",
             host=self.exec_ctx.host,
             run_id=run_id,
-            workload="dfaas",
+            workload="peva_faas",
             package="lb_plugins",
-            plugin="dfaas",
+            plugin="peva_faas",
             repetition=self.exec_ctx.repetition,
         )
         if self._loki_handler:
             self._loki_handler.setFormatter(
                 JsonlLogFormatter(
-                    component="dfaas",
+                    component="peva_faas",
                     host=self.exec_ctx.host,
                     run_id=run_id,
-                    workload="dfaas",
+                    workload="peva_faas",
                     package="lb_plugins",
-                    plugin="dfaas",
+                    plugin="peva_faas",
                     repetition=self.exec_ctx.repetition,
                 )
             )
@@ -150,9 +150,9 @@ class DfaasLogManager:
             component="k6",
             host=self.exec_ctx.host,
             run_id=run_id,
-            workload="dfaas",
+            workload="peva_faas",
             package="lb_plugins",
-            plugin="dfaas",
+            plugin="peva_faas",
             repetition=self.exec_ctx.repetition,
         )
         if self._k6_loki_handler:
@@ -161,9 +161,9 @@ class DfaasLogManager:
                     component="k6",
                     host=self.exec_ctx.host,
                     run_id=run_id,
-                    workload="dfaas",
+                    workload="peva_faas",
                     package="lb_plugins",
-                    plugin="dfaas",
+                    plugin="peva_faas",
                     repetition=self.exec_ctx.repetition,
                 )
             )

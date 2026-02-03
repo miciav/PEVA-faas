@@ -111,7 +111,7 @@ class DfaasGenerator(BaseGenerator):
         if configured_path.exists():
             return True
         # Fallback: check standard path where setup_global.yml copies the key
-        fallback_path = Path.home() / ".ssh" / "dfaas_k6_key"
+        fallback_path = Path.home() / ".ssh" / "peva_faas_k6_key"
         if fallback_path.exists():
             logger.info(
                 "k6_ssh_key not found at %s, using fallback: %s",
@@ -188,7 +188,7 @@ class DfaasGenerator(BaseGenerator):
         tags = {key: str(value) for key, value in self.config.k6_tags.items()}
         tags["run_id"] = run_id
         tags["component"] = "k6"
-        tags["workload"] = "dfaas"
+        tags["workload"] = "peva_faas"
         tags["repetition"] = str(self._exec_ctx.repetition)
         return tags
 

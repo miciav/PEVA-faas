@@ -16,8 +16,8 @@ from .generator import DfaasGenerator
 class DfaasPlugin(SimpleWorkloadPlugin):
     """Plugin definition for DFaaS."""
 
-    NAME = "dfaas"
-    DESCRIPTION = "DFaaS k6 + OpenFaaS workload"
+    NAME = "peva_faas"
+    DESCRIPTION = "PEVA-faas k6 + OpenFaaS workload"
     CONFIG_CLS = DfaasConfig
     GENERATOR_CLS = DfaasGenerator
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_global.yml"
@@ -89,7 +89,7 @@ class DfaasPlugin(SimpleWorkloadPlugin):
 def _collect_functions(results: list[dict[str, Any]]) -> list[str]:
     for entry in results:
         gen = entry.get("generator_result") or {}
-        functions = gen.get("dfaas_functions")
+        functions = gen.get("peva_faas_functions")
         if functions:
             return list(functions)
     return []
@@ -115,14 +115,14 @@ def _collect_generator_rows(
     for entry in results:
         rep = entry.get("repetition")
         gen = entry.get("generator_result") or {}
-        results_rows.extend(gen.get("dfaas_results", []))
-        skipped_rows.extend(gen.get("dfaas_skipped", []))
-        index_rows.extend(gen.get("dfaas_index", []))
-        for summary in gen.get("dfaas_summaries", []):
+        results_rows.extend(gen.get("peva_faas_results", []))
+        skipped_rows.extend(gen.get("peva_faas_skipped", []))
+        index_rows.extend(gen.get("peva_faas_index", []))
+        for summary in gen.get("peva_faas_summaries", []):
             summary_with_rep = dict(summary)
             summary_with_rep["repetition"] = rep
             summaries.append(summary_with_rep)
-        for metric in gen.get("dfaas_metrics", []):
+        for metric in gen.get("peva_faas_metrics", []):
             metric_row = _flatten_metrics(metric.get("metrics", {}))
             metrics.append(
                 {
@@ -132,7 +132,7 @@ def _collect_generator_rows(
                     "row": metric_row,
                 }
             )
-        scripts.extend(gen.get("dfaas_scripts", []))
+        scripts.extend(gen.get("peva_faas_scripts", []))
 
     return (
         results_rows,

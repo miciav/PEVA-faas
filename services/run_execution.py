@@ -113,15 +113,15 @@ class DfaasRunPlanner:
                 data = json.loads(cfg_path.read_text())
                 output_root = Path(data.get("output_dir", "."))
                 workloads = data.get("workloads", {})
-                workload_name = "dfaas"
+                workload_name = "peva_faas"
                 for name, entry in workloads.items():
-                    if isinstance(entry, dict) and entry.get("plugin") == "dfaas":
+                    if isinstance(entry, dict) and entry.get("plugin") == "peva_faas":
                         workload_name = name
                         break
                 return output_root / workload_name
             except (json.JSONDecodeError, OSError, TypeError, KeyError) as exc:
                 logger.debug("Could not parse config file %s: %s", cfg_path, exc)
-        return Path.cwd() / "benchmark_results" / "dfaas"
+        return Path.cwd() / "benchmark_results" / "peva_faas"
 
     def _load_index(
         self, output_dir: Path
@@ -466,11 +466,11 @@ class DfaasResultWriter:
         return {
             "returncode": 0,
             "success": True,
-            "dfaas_functions": function_names,
-            "dfaas_results": ctx.results_rows,
-            "dfaas_skipped": ctx.skipped_rows,
-            "dfaas_index": ctx.index_rows,
-            "dfaas_summaries": ctx.summary_entries,
-            "dfaas_metrics": ctx.metrics_entries,
-            "dfaas_scripts": ctx.script_entries,
+            "peva_faas_functions": function_names,
+            "peva_faas_results": ctx.results_rows,
+            "peva_faas_skipped": ctx.skipped_rows,
+            "peva_faas_index": ctx.index_rows,
+            "peva_faas_summaries": ctx.summary_entries,
+            "peva_faas_metrics": ctx.metrics_entries,
+            "peva_faas_scripts": ctx.script_entries,
         }

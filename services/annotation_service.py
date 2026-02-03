@@ -108,8 +108,8 @@ class DfaasAnnotationService:
     def _base_tags(self, run_id: str) -> list[str]:
         return [
             f"run_id:{run_id}",
-            "workload:dfaas",
-            "component:dfaas",
+            "workload:peva_faas",
+            "component:peva_faas",
             f"repetition:{self.exec_ctx.repetition}",
             f"host:{self.exec_ctx.host}",
             "phase:run",
