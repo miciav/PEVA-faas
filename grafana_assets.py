@@ -1,4 +1,4 @@
-"""Grafana datasource/dashboard assets for the DFaaS plugin."""
+"""Grafana datasource/dashboard assets for the PEVA-faas plugin."""
 
 from __future__ import annotations
 
@@ -10,13 +10,15 @@ from lb_plugins.observability import (
     GrafanaDatasourceAsset,
 )
 
-GRAFANA_DASHBOARD_PATH = Path(__file__).parent / "grafana" / "dfaas-dashboard.json"
-GRAFANA_K6_DASHBOARD_PATH = (
-    Path(__file__).parent / "grafana" / "dfaas-k6-dashboard.json"
+GRAFANA_DASHBOARD_PATH = (
+    Path(__file__).parent / "grafana" / "peva_faas-dashboard.json"
 )
-GRAFANA_DASHBOARD_UID = "dfaas-overview"
-GRAFANA_K6_DASHBOARD_UID = "dfaas-k6-overview"
-GRAFANA_PROMETHEUS_DATASOURCE_NAME = "dfaas-prometheus"
+GRAFANA_K6_DASHBOARD_PATH = (
+    Path(__file__).parent / "grafana" / "peva_faas-k6-dashboard.json"
+)
+GRAFANA_DASHBOARD_UID = "peva_faas-overview"
+GRAFANA_K6_DASHBOARD_UID = "peva_faas-k6-overview"
+GRAFANA_PROMETHEUS_DATASOURCE_NAME = "peva_faas-prometheus"
 
 GRAFANA_ASSETS = GrafanaAssets(
     datasources=(
@@ -26,17 +28,17 @@ GRAFANA_ASSETS = GrafanaAssets(
             access="proxy",
             url_from_config="prometheus_url",
             per_host=True,
-            name_template="DFaaS Prometheus {host.name}",
+            name_template="PEVA-faas Prometheus {host.name}",
             url_template="{config.prometheus_url}",
         ),
     ),
     dashboards=(
         GrafanaDashboardAsset(
-            name="dfaas",
+            name="peva_faas",
             path=GRAFANA_DASHBOARD_PATH,
         ),
         GrafanaDashboardAsset(
-            name="dfaas-k6",
+            name="peva_faas-k6",
             path=GRAFANA_K6_DASHBOARD_PATH,
         ),
     ),

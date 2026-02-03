@@ -187,7 +187,7 @@
       },
       "targets": [
         {
-          "expr": "100 * avg by (function) (avg_over_time(dfaas_success_rate{run_id=~\"$run_id\", function=~\"$function\"}[$__interval]))",
+          "expr": "100 * avg by (function) (avg_over_time(peva_faas_success_rate{run_id=~\"$run_id\", function=~\"$function\"}[$__interval]))",
           "legendFormat": "{{function}}",
           "refId": "A"
         }
@@ -221,7 +221,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (function) (rate(dfaas_request_count{run_id=~\"$run_id\", function=~\"$function\"}[$__rate_interval]))",
+          "expr": "sum by (function) (rate(peva_faas_request_count{run_id=~\"$run_id\", function=~\"$function\"}[$__rate_interval]))",
           "legendFormat": "{{function}}",
           "refId": "A"
         }
@@ -256,7 +256,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (le, function) (rate(dfaas_latency_bucket{run_id=~\"$run_id\", function=~\"$function\"}[$__rate_interval]))",
+          "expr": "sum by (le, function) (rate(peva_faas_latency_bucket{run_id=~\"$run_id\", function=~\"$function\"}[$__rate_interval]))",
           "format": "heatmap",
           "legendFormat": "{{function}} {{le}}",
           "refId": "A"
@@ -314,7 +314,7 @@
       },
       "targets": [
         {
-          "expr": "avg by (function) (avg_over_time(dfaas_success_rate{run_id=~\"$run_id\", function=~\"$function\"}[$__interval])) < bool 0.90",
+          "expr": "avg by (function) (avg_over_time(peva_faas_success_rate{run_id=~\"$run_id\", function=~\"$function\"}[$__interval])) < bool 0.90",
           "legendFormat": "{{function}}",
           "refId": "A"
         }
@@ -327,15 +327,15 @@
   "schemaVersion": 38,
   "style": "dark",
   "tags": [
-    "dfaas"
+    "peva_faas"
   ],
   "templating": {
     "list": [
       {
         "current": {
           "selected": true,
-          "text": "DFaaS Prometheus",
-          "value": "DFaaS Prometheus"
+          "text": "PEVA-faas Prometheus",
+          "value": "PEVA-faas Prometheus"
         },
         "hide": 0,
         "label": "Prometheus",
@@ -357,7 +357,7 @@
         "label": "Run ID",
         "multi": false,
         "name": "run_id",
-        "query": "label_values(dfaas_success_rate, run_id)",
+        "query": "label_values(peva_faas_success_rate, run_id)",
         "refresh": 2,
         "type": "query"
       },
@@ -391,7 +391,7 @@
         "label": "Function",
         "multi": true,
         "name": "function",
-        "query": "label_values(dfaas_success_rate{run_id=~\"$run_id\"}, function)",
+        "query": "label_values(peva_faas_success_rate{run_id=~\"$run_id\"}, function)",
         "refresh": 2,
         "type": "query"
       }
@@ -403,7 +403,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "DFaaS Overview",
-  "uid": "dfaas-overview",
+  "title": "PEVA-faas Overview",
+  "uid": "peva_faas-overview",
   "version": 1
 }

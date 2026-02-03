@@ -32,7 +32,7 @@
       },
       "targets": [
         {
-          "expr": "{component=\"k6\", plugin=\"dfaas\", host=~\"$host\", run_id=~\"$run_id\"}",
+          "expr": "{component=\"k6\", plugin=\"peva_faas\", host=~\"$host\", run_id=~\"$run_id\"}",
           "refId": "A"
         }
       ],
@@ -44,7 +44,7 @@
   "schemaVersion": 38,
   "style": "dark",
   "tags": [
-    "dfaas",
+    "peva_faas",
     "k6",
     "logs"
   ],
@@ -76,7 +76,7 @@
         "label": "Host",
         "multi": false,
         "name": "host",
-        "query": "label_values({component=\"k6\", plugin=\"dfaas\"}, host)",
+        "query": "label_values({component=\"k6\", plugin=\"peva_faas\"}, host)",
         "refresh": 1,
         "type": "query"
       },
@@ -93,7 +93,7 @@
         "label": "Run ID",
         "multi": false,
         "name": "run_id",
-        "query": "label_values({component=\"k6\", plugin=\"dfaas\"}, run_id)",
+        "query": "label_values({component=\"k6\", plugin=\"peva_faas\"}, run_id)",
         "refresh": 1,
         "type": "query"
       }
@@ -116,7 +116,7 @@
     ]
   },
   "timezone": "browser",
-  "title": "DFaaS k6 Logs",
-  "uid": "dfaas-k6-overview",
+  "title": "PEVA-faas k6 Logs",
+  "uid": "peva_faas-k6-overview",
   "version": 1
 }
