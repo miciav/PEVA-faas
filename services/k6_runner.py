@@ -57,6 +57,7 @@ class K6Runner:
         self.log_stream_enabled = log_stream_enabled
         self._log_callback = log_callback
         self._log_to_logger = log_to_logger
+        self._stream_started = False
 
     def build_script(
         self,
@@ -176,6 +177,9 @@ class K6Runner:
         start_time = time.time()
         output_lines: list[str] = []
         try:
+            if self.log_stream_enabled and not self._stream_started:
+                self._log("k6[stream] log stream started")
+                self._stream_started = True
             process = subprocess.Popen(
                 k6_cmd,
                 stdout=subprocess.PIPE,

@@ -282,6 +282,14 @@ class DfaasConfig(BasePluginConfig):
         description="Optional output directory for DFaaS artifacts",
     )
     run_id: str | None = Field(default=None, description="Optional run identifier")
+    k3s_host: str = Field(
+        default="127.0.0.1", description="k3s/OpenFaaS host address"
+    )
+    k3s_user: str = Field(default="ubuntu", description="SSH user for k3s host")
+    k3s_ssh_key: str = Field(
+        default="~/.ssh/id_rsa", description="SSH private key for k3s host"
+    )
+    k3s_port: int = Field(default=22, ge=1, le=65535, description="SSH port")
     k6_host: str = Field(default="127.0.0.1", description="k6 host address")
     k6_user: str = Field(default="ubuntu", description="SSH user for k6 host")
     k6_ssh_key: str = Field(default="~/.ssh/id_rsa", description="SSH private key path")
