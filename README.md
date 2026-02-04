@@ -15,44 +15,44 @@ persists legacy-compatible CSV outputs.
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                           Controller Host                                │
-│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐     │
-│  │  PEVA-faas Generator │───▶│  Ansible Runner │───▶│ Prometheus Client│    │
-│  └─────────────────┘    └─────────────────┘    └─────────────────┘     │
-└─────────────────────────────────┬───────────────────────┬───────────────┘
-                                  │ SSH                   │ HTTP
-                    ┌─────────────┴─────────────┐         │
-                    ▼                           ▼         │
-        ┌───────────────────┐       ┌───────────────────┐ │
-        │     k6 Host       │       │   Target Host     │◀┘
-        │  ┌─────────────┐  │       │  ┌─────────────┐  │
-        │  │     k6      │  │──────▶│  │  OpenFaaS   │  │
-        │  └─────────────┘  │ HTTP  │  │   Gateway   │  │
-        │                   │       │  └─────────────┘  │
-        └───────────────────┘       │  ┌─────────────┐  │
-                                    │  │ Prometheus  │  │
-                                    │  │ + exporters │  │
-                                    │  └─────────────┘  │
-                                    │  ┌─────────────┐  │
-                                    │  │    k3s      │  │
-                                    │  └─────────────┘  │
-                                    └───────────────────┘
+│  ┌─────────────────┐    ┌─────────────────┐                              │
+│  │   Controller    │───▶│  Ansible Runner │                              │
+│  └─────────────────┘    └─────────────────┘                              │
+└─────────────────────────────────┬───────────────────────────────┬────────┘
+                                  │ SSH                           │ SSH
+                    ┌─────────────┴─────────────┐     ┌───────────┴───────────┐
+                    ▼                           ▼     ▼                       ▼
+        ┌───────────────────┐       ┌───────────────────────────┐
+        │   Runner Host     │       │         k3s Host          │
+        │  ┌─────────────┐  │       │  ┌─────────────┐          │
+        │  │ PEVA-faas   │──┼──────▶│  │  OpenFaaS   │          │
+        │  │ Generator   │  │ HTTP  │  │   Gateway  │          │
+        │  └─────────────┘  │       │  └─────────────┘          │
+        │  ┌─────────────┐  │       │  ┌─────────────┐          │
+        │  │     k6      │  │       │  │ Prometheus  │          │
+        │  └─────────────┘  │       │  │ + exporters │          │
+        │  ┌─────────────┐  │       │  └─────────────┘          │
+        │  │ Prometheus  │  │       │  ┌─────────────┐          │
+        │  │ Client      │  │       │  │    k3s      │          │
+        │  └─────────────┘  │       │  └─────────────┘          │
+        └───────────────────┘       └───────────────────────────┘
 ```
 
 ### Components
 
-**Controller host** (where the runner executes):
-- Runs the PEVA-faas generator locally.
-- Invokes Ansible to provision the target and k6 hosts.
-- Pulls k6 summaries via Ansible fetch.
-- Queries Prometheus over HTTP.
+**Controller host**:
+- Runs the controller and Ansible orchestration.
+- Provisions the runner host and the k3s host via Ansible.
+- Triggers the workload execution on the runner host.
 
-**Target host**:
+**Runner host (target)**:
+- Runs the PEVA-faas generator and k6 locally.
+- Queries Prometheus on the k3s host over HTTP.
+- Writes k6 scripts/logs/summaries under the run output directory.
+
+**k3s host**:
 - Runs k3s + OpenFaaS + Prometheus + node-exporter + cAdvisor.
 - Exposes the OpenFaaS gateway (NodePort 31112) and Prometheus (NodePort 30411).
-
-**k6 host**:
-- Receives k6 scripts via Ansible.
-- Runs k6 and exports a summary.json file.
 
 ### Repository layout
 
@@ -60,10 +60,9 @@ persists legacy-compatible CSV outputs.
 - `generator.py`: config generation, k6 orchestration, Prometheus queries.
 - `queries.yml`: PromQL queries.
 - `ansible/`: setup and run playbooks.
-  - `setup_target.yml` installs k3s/OpenFaaS/Prometheus stack (target-only; does not install k6).
-  - `setup_global.yml` orchestrates both target and k6 host setup.
-  - `setup_k6.yml` installs k6 and prepares workspace.
-  - `run_k6.yml` runs a single config on the k6 host.
+  - `setup_target.yml` installs k3s/OpenFaaS/Prometheus stack (k3s host).
+  - `setup_plugin.yml` orchestrates both runner (k6) and k3s host setup.
+  - `setup_k6.yml` installs k6 + faas-cli on the runner host.
 - `ansible/manifests/`: Kubernetes manifests for Prometheus and exporters.
 
 ## Prerequisites
@@ -73,68 +72,68 @@ persists legacy-compatible CSV outputs.
 **Controller host**:
 - Python 3.12+
 - `ansible-playbook` (Ansible Core 2.15+)
-- `faas-cli` (OpenFaaS CLI)
 - SSH client with key-based authentication
 
-**Target host**:
+**Runner host (target)**:
+- Ubuntu 22.04+ or Debian 12+
+- Minimum 2 GB RAM, 2 CPUs
+- Root/sudo access
+- `k6` + `faas-cli` (installed by `setup_plugin.yml`)
+
+**k3s host**:
 - Ubuntu 22.04+ or Debian 12+ (systemd-based)
 - Minimum 4 GB RAM, 2 CPUs
 - Root/sudo access
 - Ports 31112 (OpenFaaS) and 30411 (Prometheus) available
 
-**k6 host**:
-- Ubuntu 22.04+ or Debian 12+
-- Minimum 2 GB RAM, 2 CPUs
-- Root/sudo access
-
 ### Network requirements
 
 Required connectivity:
-- Controller -> target: SSH (port 22), HTTP to Prometheus (port 30411)
-- Controller -> k6 host: SSH (port 22)
-- k6 host -> target: HTTP to OpenFaaS gateway (port 31112)
+- Controller -> runner: SSH (port 22)
+- Controller -> k3s host: SSH (port 22)
+- Runner -> k3s host: HTTP to OpenFaaS gateway (port 31112) and Prometheus (port 30411)
 
 Default ports:
 - OpenFaaS gateway: 31112 (NodePort)
 - Prometheus: 30411 (NodePort)
 
-If NodePorts are not reachable from the controller, use SSH tunneling:
+If NodePorts are not reachable from the runner, use SSH tunneling:
 ```bash
-ssh -L 30411:localhost:30411 -L 31112:localhost:31112 user@target-host
+ssh -L 30411:localhost:30411 -L 31112:localhost:31112 user@k3s-host
 ```
 
 ## Setup steps
 
 ### Step 1: Prepare SSH access
 
-Ensure passwordless SSH access from controller to both target and k6 hosts:
+Ensure passwordless SSH access from controller to both runner and k3s hosts:
 ```bash
-ssh-copy-id user@target-host
-ssh-copy-id user@k6-host
+ssh-copy-id user@runner-host
+ssh-copy-id user@k3s-host
 ```
 
-### Step 2: Create inventory files
+### Step 2: Create inventory file for the runner host
 
-**Target inventory** (`target_inventory.ini`):
+**Runner inventory** (`target_inventory.ini`):
 ```ini
 [all]
-target ansible_host=<target-ip> ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
+runner ansible_host=<runner-ip> ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
 ```
 
-**k6 inventory** (`k6_inventory.ini`):
+### Step 3: (Optional) Setup k3s host directly
+
+If you want to provision the k3s/OpenFaaS node independently, create a k3s inventory:
 ```ini
 [all]
-k6 ansible_host=<k6-ip> ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
+k3s ansible_host=<k3s-ip> ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
 ```
 
-### Step 3: Setup target host (k3s + OpenFaaS + Prometheus)
-
 ```bash
-ansible-playbook -i target_inventory.ini \
+ansible-playbook -i k3s_inventory.ini \
   -e '{"openfaas_functions":["figlet","env"]}' \
   lb_plugins/plugins/peva_faas/ansible/setup_target.yml
 ```
-Note: `setup_target.yml` does not install k6.
+Note: `setup_target.yml` configures only the k3s host.
 
 Key variables:
 - `openfaas_gateway_node_port` (default 31112)
@@ -144,34 +143,39 @@ Key variables:
 
 Verification:
 ```bash
-ssh target-host kubectl get nodes
-faas-cli list --gateway http://<target-ip>:31112
-curl http://<target-ip>:30411/-/ready
+ssh k3s-host kubectl get nodes
+faas-cli list --gateway http://<k3s-ip>:31112
+curl http://<k3s-ip>:30411/-/ready
 ```
 
-To provision both the target and k6 hosts in one go, run:
+### Step 4: Setup runner + k3s hosts via setup_plugin.yml
+
+To provision both the runner and k3s hosts in one go, run:
 ```bash
 ansible-playbook -i target_inventory.ini \
   -e "benchmark_config=<path-to-benchmark-config>" \
-  lb_plugins/plugins/peva_faas/ansible/setup_global.yml
+  lb_plugins/plugins/peva_faas/ansible/setup_plugin.yml
 ```
 
-### Step 4: Setup k6 host
+This playbook installs k6 + faas-cli on the runner and configures the k3s host
+using the `k3s_*` fields from the benchmark config.
+
+### Step 5: (Optional) Setup runner host only
 
 ```bash
-ansible-playbook -i k6_inventory.ini lb_plugins/plugins/peva_faas/ansible/setup_k6.yml
+ansible-playbook -i target_inventory.ini lb_plugins/plugins/peva_faas/ansible/setup_k6.yml
 ```
 
 Key variables:
-- `k6_workspace_root` (default `/home/<k6_user>/.peva_faas-k6`)
+- `k6_workspace_root` (default `/home/<ansible_user>/.peva_faas-k6`)
 - `k6_version` (default `0.49.0`)
 
 Verification:
 ```bash
-ssh k6-host k6 version
+ssh runner-host k6 version
 ```
 
-### Step 5: Create benchmark configuration
+### Step 6: Create benchmark configuration
 
 Create a YAML configuration file (see Configuration reference below) or use the example config.
 
@@ -199,7 +203,7 @@ Create a YAML configuration file (see Configuration reference below) or use the 
 │     ├─▶ Check dominance (skip if dominated by overloaded config)        │
 │     ├─▶ Wait for cooldown (CPU/RAM below threshold, replicas < 2)       │
 │     ├─▶ Generate k6 script for this config                              │
-│     ├─▶ Execute k6 via Ansible on k6 host                               │
+│     ├─▶ Execute k6 locally on the runner host                           │
 │     ├─▶ Parse k6 summary (success rate, latency)                        │
 │     ├─▶ Query Prometheus for metrics                                    │
 │     ├─▶ Evaluate overload conditions                                    │
@@ -260,6 +264,16 @@ Config precedence:
 2. `plugins.peva_faas` in the file.
 3. Options passed alongside `config_path` (highest priority).
 
+When running via the controller, disable runner-side metric collectors for this
+workload by setting `collectors_enabled: false` in the workload entry:
+
+```yaml
+workloads:
+  peva_faas:
+    plugin: peva_faas
+    collectors_enabled: false
+```
+
 ## Configuration reference
 
 All fields live under `plugins.peva_faas` unless noted.
@@ -267,20 +281,22 @@ All fields live under `plugins.peva_faas` unless noted.
 ### Core
 - `config_path` (Path, optional): YAML/JSON file with `common` + `plugins.peva_faas`.
 - `output_dir` (Path, optional): override output directory for artifacts.
-- `run_id` (str, optional): identifier for the k6 workspace path.
+- `run_id` (str, optional): identifier used for k6 output paths and annotations.
 
-### k6 host
-- `k6_host` (str, default `127.0.0.1`): k6 host address.
-- `k6_user` (str, default `ubuntu`): SSH user for k6 host.
-- `k6_ssh_key` (str, default `~/.ssh/id_rsa`): SSH private key.
-- `k6_port` (int, default 22): SSH port.
-- `k6_workspace_root` (str, default `/home/<k6_user>/.peva_faas-k6`): workspace root on k6 host.
+### k3s host
+- `k3s_host` (str, default `127.0.0.1`): k3s/OpenFaaS host address.
+- `k3s_user` (str, default `ubuntu`): SSH user for the k3s host.
+- `k3s_ssh_key` (str, default `~/.ssh/id_rsa`): SSH private key for the k3s host.
+- `k3s_port` (int, default 22): SSH port.
+
+### k6 runner
+- `k6_log_stream` (bool, default true): stream k6 output into logs while each config runs.
 - `k6_outputs` (list[str], default empty): optional k6 `--out` targets (e.g. Loki).
 - `k6_tags` (map, default empty): additional k6 tags merged with run metadata.
 
 ### OpenFaaS and Prometheus
-- `gateway_url` (str, default `http://127.0.0.1:31112`): OpenFaaS gateway URL.
-- `prometheus_url` (str, default `http://127.0.0.1:30411`): Prometheus base URL. For multi-host Grafana provisioning, use a template like `http://{host.address}:30411`.
+- `gateway_url` (str, default `http://127.0.0.1:31112`): OpenFaaS gateway URL. `{host.address}` is replaced with `k3s_host` if present.
+- `prometheus_url` (str, default `http://127.0.0.1:30411`): Prometheus base URL. `{host.address}` is replaced with `k3s_host` if present.
 
 ### Grafana (optional)
 - `grafana.enabled` (bool, default false): enable Grafana integration.
@@ -342,13 +358,13 @@ common:
 
 plugins:
   peva_faas:
-    k6_host: "10.0.0.50"
-    k6_user: "ubuntu"
-    k6_ssh_key: "~/.ssh/id_rsa"
-    k6_port: 22
+    k3s_host: "10.0.0.50"
+    k3s_user: "ubuntu"
+    k3s_ssh_key: "~/.ssh/id_rsa"
+    k3s_port: 22
 
-    gateway_url: "http://<target-ip>:31112"
-    prometheus_url: "http://<target-ip>:30411"
+    gateway_url: "http://<k3s-ip>:31112"
+    prometheus_url: "http://<k3s-ip>:30411"
     k6_outputs:
       - "loki=http://<controller-ip>:3100/loki/api/v1/push"
     k6_tags:
@@ -459,31 +475,31 @@ If a query fails, the metric is recorded as `nan`.
 | OpenFaaS gateway unreachable | NodePort not exposed or firewall | Verify port 31112 is open; check `kubectl get svc -n openfaas` |
 | `faas-cli login` fails | Wrong password or gateway URL | Run `kubectl get secret -n openfaas basic-auth -o jsonpath="{.data.basic-auth-password}" \| base64 -d` |
 | Prometheus timeouts | Pod not running or wrong port | Check `kubectl get pods -n openfaas -l app=prometheus` |
-| k6 SSH errors | Key permissions or network | Verify key has 600 permissions; test `ssh -i key user@host` |
+| k6 not found on runner | k6 not installed | Run `setup_plugin.yml` or `setup_k6.yml` on the runner host |
 | Cooldown never finishes | High CPU/RAM or stuck replicas | Check `faas-cli list` for replica counts; investigate load source |
 | Missing metrics in results | Exporter pods not running | Verify `node-exporter` and `cadvisor` daemonsets are healthy |
-| `nan` values in CSV | Prometheus query returned empty | Check Prometheus targets are UP at `http://<target>:30411/targets` |
+| `nan` values in CSV | Prometheus query returned empty | Check Prometheus targets are UP at `http://<k3s>:30411/targets` |
 
 ### Diagnostic commands
 
 ```bash
 # Check k3s cluster status
-ssh target-host kubectl get nodes
+ssh k3s-host kubectl get nodes
 
 # Check OpenFaaS pods
-ssh target-host kubectl get pods -n openfaas
+ssh k3s-host kubectl get pods -n openfaas
 
 # Check Prometheus targets
-curl http://<target-ip>:30411/api/v1/targets | jq '.data.activeTargets[].health'
+curl http://<k3s-ip>:30411/api/v1/targets | jq '.data.activeTargets[].health'
 
 # Test function invocation
-curl -X POST http://<target-ip>:31112/function/figlet -d "test"
+curl -X POST http://<k3s-ip>:31112/function/figlet -d "test"
 
-# Check k6 installation
-ssh k6-host k6 version
+# Check k6 installation on runner
+ssh runner-host k6 version
 
-# View k6 workspace
-ssh k6-host ls -la /home/<k6_user>/.peva_faas-k6/
+# View k6 artifacts (default output dir)
+ssh runner-host ls -la benchmark_results/peva_faas/k6/
 ```
 
 ### Debug mode

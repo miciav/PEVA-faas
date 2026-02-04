@@ -20,9 +20,9 @@ class DfaasPlugin(SimpleWorkloadPlugin):
     DESCRIPTION = "PEVA-faas k6 + OpenFaaS workload"
     CONFIG_CLS = DfaasConfig
     GENERATOR_CLS = DfaasGenerator
-    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_global.yml"
-    COLLECT_PRE_PLAYBOOK = Path(__file__).parent / "ansible" / "collect" / "pre.yml"
-    COLLECT_POST_PLAYBOOK = Path(__file__).parent / "ansible" / "collect" / "post.yml"
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
+    COLLECT_PRE_PLAYBOOK = None
+    COLLECT_POST_PLAYBOOK = None
     GRAFANA_ASSETS = GRAFANA_ASSETS
 
     def export_results_to_csv(

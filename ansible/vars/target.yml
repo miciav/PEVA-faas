@@ -1,7 +1,7 @@
 ---
 # Centralized target setup variables for DFaaS plugin.
-# Used by: setup_global.yml, setup_target.yml
-# Required by: tasks/setup_target_tasks.yml
+# Used by: setup_plugin.yml, setup_target.yml
+# Required by: tasks/setup_k3s_tasks.yml
 
 # K3s configuration
 k3s_version: ""

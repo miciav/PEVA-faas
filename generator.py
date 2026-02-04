@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import logging
-import socket
 import subprocess
-from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
 from .config import DfaasConfig
@@ -46,19 +44,14 @@ class DfaasGenerator(BaseGenerator):
         )
         self._annotations = DfaasAnnotationService(config.grafana, self._exec_ctx)
         self._k6_runner = K6Runner(
-            k6_host=config.k6_host,
-            k6_user=config.k6_user,
-            k6_ssh_key=config.k6_ssh_key,
-            k6_port=config.k6_port,
-            k6_workspace_root=config.k6_workspace_root,
-            gateway_url=self._resolve_url_template(config.gateway_url, self._exec_ctx.host),
+            gateway_url=self._resolve_service_url(config.gateway_url),
             duration=config.duration,
             log_stream_enabled=config.k6_log_stream,
             log_callback=self._log_manager.emit_k6_log,
             log_to_logger=True,
         )
         self._metrics_collector = MetricsCollector(
-            prometheus_url=self._resolve_url_template(config.prometheus_url, self._exec_ctx.host),
+            prometheus_url=self._resolve_service_url(config.prometheus_url),
             queries_path=config.queries_path,
             duration=config.duration,
             scaphandre_enabled=config.scaphandre_enabled,
@@ -93,43 +86,12 @@ class DfaasGenerator(BaseGenerator):
         return self._planner.estimate_runtime_seconds()
 
     def _validate_environment(self) -> bool:
-        required = ["faas-cli"]
+        required = ["faas-cli", "k6"]
         for tool in required:
             if subprocess.run(["which", tool], capture_output=True).returncode != 0:
                 logger.error("Required tool missing: %s", tool)
                 return False
-        # Resolve k6_ssh_key: try configured path first, then fallback to standard remote path
-        if not self._resolve_k6_ssh_key():
-            return False
         return True
-
-    def _resolve_k6_ssh_key(self) -> bool:
-        """Resolve k6_ssh_key path, trying fallback locations for remote execution."""
-        if not self.config.k6_ssh_key:
-            return True
-        configured_path = Path(self.config.k6_ssh_key).expanduser()
-        if configured_path.exists():
-            return True
-        # Fallback: check standard path where setup_global.yml copies the key
-        fallback_path = Path.home() / ".ssh" / "peva_faas_k6_key"
-        if fallback_path.exists():
-            logger.info(
-                "k6_ssh_key not found at %s, using fallback: %s",
-                self.config.k6_ssh_key,
-                fallback_path,
-            )
-            resolved_path = str(fallback_path)
-            # Update config with resolved path
-            object.__setattr__(self.config, "k6_ssh_key", resolved_path)
-            # Also update K6Runner which was created with the original path
-            self._k6_runner.k6_ssh_key = resolved_path
-            return True
-        logger.error(
-            "k6_ssh_key does not exist at configured path (%s) or fallback (%s)",
-            self.config.k6_ssh_key,
-            fallback_path,
-        )
-        return False
 
     def _stop_workload(self) -> None:
         return None
@@ -144,45 +106,25 @@ class DfaasGenerator(BaseGenerator):
             self._annotations.annotate_run_end(ctx.run_id)
         self._result = self._result_writer.build(ctx)
 
-    def _get_local_ip(self) -> str:
-        """Resolve the primary local IP address."""
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            # doesn't even have to be reachable
-            s.connect(('10.255.255.255', 1))
-            IP = s.getsockname()[0]
-        except Exception:
-            IP = '127.0.0.1'
-        finally:
-            s.close()
-        return IP
-
-    def _resolve_url_template(self, url: str, target_name: str) -> str:
-        """Resolve {host.address} in URL with best available address."""
+    def _resolve_service_url(self, url: str) -> str:
+        """Resolve {host.address} in URL with k3s host address."""
         if "{host.address}" in url:
-            replacement = (
-                self._exec_ctx.host_address
-                or target_name
-                or self._get_local_ip()
-            )
-            url = url.replace("{host.address}", replacement)
+            url = url.replace("{host.address}", self.config.k3s_host)
         
         parsed = urlparse(url)
         if not parsed.scheme or not parsed.netloc:
             return url
         
-        # Fallback for localhost replacement logic
+        # Replace localhost-style URLs with k3s host
         host = parsed.hostname
         if host in {"127.0.0.1", "localhost", "0.0.0.0"}:
-            host_address = self._exec_ctx.host_address
-            if host_address:
-                port = parsed.port
-                netloc = f"{host_address}:{port}" if port else host_address
-                return urlunparse(parsed._replace(netloc=netloc))
+            port = parsed.port
+            netloc = f"{self.config.k3s_host}:{port}" if port else self.config.k3s_host
+            return urlunparse(parsed._replace(netloc=netloc))
         return url
 
-    def _resolve_prometheus_url(self, target_name: str) -> str:
-        return self._resolve_url_template(self.config.prometheus_url, target_name)
+    def _resolve_prometheus_url(self) -> str:
+        return self._resolve_service_url(self.config.prometheus_url)
 
     def _build_k6_tags(self, run_id: str) -> dict[str, str]:
         tags = {key: str(value) for key, value in self.config.k6_tags.items()}

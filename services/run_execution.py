@@ -34,6 +34,7 @@ class DfaasRunContext:
     base_idle: MetricsSnapshot
     target_name: str
     run_id: str
+    output_dir: Path
 
     # Result containers
     results_rows: list[dict[str, Any]] = field(default_factory=list)
@@ -102,6 +103,7 @@ class DfaasRunPlanner:
             base_idle=base_idle,
             target_name=target_name,
             run_id=run_id,
+            output_dir=output_dir,
         )
 
     def _resolve_output_dir(self) -> Path:
@@ -378,6 +380,7 @@ class DfaasConfigExecutor:
             ctx.target_name,
             ctx.run_id,
             metric_ids,
+            output_dir=ctx.output_dir,
             outputs=self._outputs_provider(),
             tags=self._tags_provider(ctx.run_id),
         )

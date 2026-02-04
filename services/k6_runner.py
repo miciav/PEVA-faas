@@ -1,20 +1,15 @@
-"K6 runner service for executing k6 load tests using Fabric/SSH."
+"""K6 runner service for executing k6 load tests locally."""
 
 from __future__ import annotations
 
 import json
 import logging
-import os
 import re
-import shlex
-import tempfile
+import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, TYPE_CHECKING
-
-from fabric import Connection
-from invoke.exceptions import UnexpectedExit
 
 from ..exceptions import K6ExecutionError
 
@@ -22,21 +17,6 @@ if TYPE_CHECKING:
     from ..config import DfaasFunctionConfig
 
 logger = logging.getLogger(__name__)
-
-
-class _StreamWriter:
-    """File-like wrapper that calls a callback for each write."""
-
-    def __init__(self, callback: Callable[[str], None]) -> None:
-        self._callback = callback
-
-    def write(self, data: str) -> int:
-        if data:
-            self._callback(data)
-        return len(data)
-
-    def flush(self) -> None:
-        pass
 
 
 @dataclass
@@ -61,44 +41,22 @@ def _normalize_metric_id(name: str) -> str:
 
 
 class K6Runner:
-    """Service for running k6 load tests via direct SSH (Fabric)."""
+    """Service for running k6 load tests locally."""
 
     def __init__(
         self,
-        k6_host: str,
-        k6_user: str,
-        k6_ssh_key: str,
-        k6_port: int,
-        k6_workspace_root: str,
+        *,
         gateway_url: str,
         duration: str,
         log_stream_enabled: bool = False,
         log_callback: Any | None = None,
         log_to_logger: bool = True,
     ) -> None:
-        self.k6_host = k6_host
-        self.k6_user = k6_user
-        self.k6_ssh_key = k6_ssh_key
-        self.k6_port = k6_port
-        self.k6_workspace_root = k6_workspace_root
         self.gateway_url = gateway_url
         self.duration = duration
         self.log_stream_enabled = log_stream_enabled
         self._log_callback = log_callback
         self._log_to_logger = log_to_logger
-
-    def _get_connection(self) -> Connection:
-        """Create a Fabric connection to the k6 host."""
-        key_path = Path(self.k6_ssh_key).expanduser()
-        return Connection(
-            host=self.k6_host,
-            user=self.k6_user,
-            port=self.k6_port,
-            connect_kwargs={
-                "key_filename": str(key_path),
-                "banner_timeout": 30,
-            }
-        )
 
     def build_script(
         self,
@@ -198,68 +156,57 @@ class K6Runner:
         run_id: str,
         metric_ids: dict[str, str],
         *,
+        output_dir: Path | str,
         outputs: Iterable[str] | None = None,
         tags: Mapping[str, str] | None = None,
     ) -> K6RunResult:
-        """Execute k6 script via Fabric/SSH."""
-        conn = self._get_connection()
+        """Execute k6 script locally."""
+        output_root = Path(output_dir)
+        workspace = output_root / "k6" / target_name / run_id / config_id
+        script_path = workspace / "script.js"
+        summary_path = workspace / "summary.json"
+        log_path = workspace / "k6.log"
+
+        workspace.mkdir(parents=True, exist_ok=True)
+        script_path.write_text(script)
+
+        k6_cmd = self._build_k6_command(script_path, summary_path, outputs, tags)
+        self._log(f"Running k6 for config {config_id}...")
+
         start_time = time.time()
-        
-        workspace = f"{self.k6_workspace_root}/{target_name}/{run_id}/{config_id}"
-        script_path = f"{workspace}/script.js"
-        summary_path = f"{workspace}/summary.json"
-        log_path = f"{workspace}/k6.log"
-
+        output_lines: list[str] = []
         try:
-            conn.run(f"mkdir -p {workspace}", hide=True, in_stream=False)
-
-            with tempfile.NamedTemporaryFile("w", delete=False) as f:
-                f.write(script)
-                local_tmp = f.name
-            
-            try:
-                conn.put(local_tmp, script_path)
-            finally:
-                os.unlink(local_tmp)
-
-            k6_cmd = self._build_k6_command(script_path, summary_path, outputs, tags)
-            self._log(f"Running k6 for config {config_id}...")
-            
-            full_cmd = f"{k6_cmd} 2>&1 | tee {log_path}"
-            
-            try:
-                out_writer = _StreamWriter(self._stream_handler) if self.log_stream_enabled else None
-                result = conn.run(
-                    full_cmd,
-                    hide=True,
-                    out_stream=out_writer,
-                    warn=True,
-                    in_stream=False,  # Disable stdin to avoid pytest capture issues
-                )
-            except UnexpectedExit as e:
+            process = subprocess.Popen(
+                k6_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+            assert process.stdout is not None
+            with log_path.open("w") as log_handle:
+                for line in process.stdout:
+                    log_handle.write(line)
+                    output_lines.append(line)
+                    if self.log_stream_enabled:
+                        self._stream_handler(line)
+            returncode = process.wait()
+            if returncode != 0:
                 raise K6ExecutionError(
                     config_id=config_id,
-                    message=f"k6 ssh execution failed: {e}",
-                    stdout=str(e),
+                    message=f"k6 failed with exit code {returncode}",
+                    stdout="".join(output_lines),
                     stderr="",
                 )
 
-            if result.failed:
+            if not summary_path.exists():
                 raise K6ExecutionError(
                     config_id=config_id,
-                    message=f"k6 failed with exit code {result.exited}",
-                    stdout=result.stdout,
-                    stderr=result.stderr,
+                    message="k6 summary file not found",
+                    stdout="".join(output_lines),
+                    stderr="",
                 )
-
-            with tempfile.NamedTemporaryFile("w", delete=False) as f:
-                local_summary = f.name
-            
-            try:
-                conn.get(summary_path, local_summary)
-                summary_data = json.loads(Path(local_summary).read_text())
-            finally:
-                os.unlink(local_summary)
+            summary_data = json.loads(summary_path.read_text())
 
             end_time = time.time()
             return K6RunResult(
@@ -269,18 +216,15 @@ class K6Runner:
                 duration_seconds=end_time - start_time,
                 metric_ids=metric_ids,
             )
-
+        except K6ExecutionError:
+            raise
         except Exception as exc:
-            if isinstance(exc, K6ExecutionError):
-                raise
             raise K6ExecutionError(
                 config_id=config_id,
-                message=f"SSH execution error: {exc}",
-                stdout="",
-                stderr=str(exc)
-            )
-        finally:
-            conn.close()
+                message=f"k6 execution error: {exc}",
+                stdout="".join(output_lines),
+                stderr=str(exc),
+            ) from exc
 
     def _stream_handler(self, data: str) -> None:
         if not self.log_stream_enabled:
@@ -288,7 +232,7 @@ class K6Runner:
         for line in data.splitlines():
             clean = line.strip()
             if clean:
-                self._log(f"k6 remote: {clean}")
+                self._log(f"k6: {clean}")
 
     def _log(self, message: str) -> None:
         if self._log_callback:
@@ -297,20 +241,20 @@ class K6Runner:
             logger.info("%s", message)
 
     def _build_k6_command(
-        self, 
-        script_path: str, 
-        summary_path: str,
+        self,
+        script_path: Path,
+        summary_path: Path,
         outputs: Iterable[str] | None,
-        tags: Mapping[str, str] | None
-    ) -> str:
-        parts = ["k6", "run", "--summary-export", summary_path]
+        tags: Mapping[str, str] | None,
+    ) -> list[str]:
+        parts = ["k6", "run", "--summary-export", str(summary_path)]
         for output in outputs or []:
             if output.strip():
                 parts.extend(["--out", output.strip()])
         for k, v in (tags or {}).items():
             parts.extend(["--tag", f"{k}={v}"])
-        parts.append(script_path)
-        return " ".join(shlex.quote(p) for p in parts)
+        parts.append(str(script_path))
+        return parts
 
     def parse_summary(
         self,
