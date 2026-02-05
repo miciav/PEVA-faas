@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import socket
 import subprocess
-from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
 from .config import DfaasConfig
@@ -26,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class DfaasGenerator(BaseGenerator):
-    """DFaaS generator that orchestrates one config at a time."""
+    """PEVA-faas generator that orchestrates one config at a time."""
 
     def __init__(
         self,
@@ -46,23 +45,14 @@ class DfaasGenerator(BaseGenerator):
         )
         self._annotations = DfaasAnnotationService(config.grafana, self._exec_ctx)
         self._k6_runner = K6Runner(
-            k6_host=config.k6_host,
-            k6_user=config.k6_user,
-            k6_ssh_key=config.k6_ssh_key,
-            k6_port=config.k6_port,
-            k6_workspace_root=config.k6_workspace_root,
-            gateway_url=self._resolve_url_template(
-                config.gateway_url, self._exec_ctx.host
-            ),
+            gateway_url=self._resolve_url_template(config.gateway_url),
             duration=config.duration,
             log_stream_enabled=config.k6_log_stream,
             log_callback=self._log_manager.emit_k6_log,
             log_to_logger=True,
         )
         self._metrics_collector = MetricsCollector(
-            prometheus_url=self._resolve_url_template(
-                config.prometheus_url, self._exec_ctx.host
-            ),
+            prometheus_url=self._resolve_prometheus_url(),
             queries_path=config.queries_path,
             duration=config.duration,
             scaphandre_enabled=config.scaphandre_enabled,
@@ -97,49 +87,18 @@ class DfaasGenerator(BaseGenerator):
         return self._planner.estimate_runtime_seconds()
 
     def _validate_environment(self) -> bool:
-        required = ["faas-cli"]
+        required = ["faas-cli", "k6"]
         for tool in required:
             if subprocess.run(["which", tool], capture_output=True).returncode != 0:
                 logger.error("Required tool missing: %s", tool)
                 return False
-        # Resolve k6_ssh_key; fall back to standard remote path.
-        if not self._resolve_k6_ssh_key():
-            return False
         return True
-
-    def _resolve_k6_ssh_key(self) -> bool:
-        """Resolve k6_ssh_key path, trying fallback locations for remote execution."""
-        if not self.config.k6_ssh_key:
-            return True
-        configured_path = Path(self.config.k6_ssh_key).expanduser()
-        if configured_path.exists():
-            return True
-        # Fallback: check standard path where setup_global.yml copies the key
-        fallback_path = Path.home() / ".ssh" / "dfaas_k6_key"
-        if fallback_path.exists():
-            logger.info(
-                "k6_ssh_key not found at %s, using fallback: %s",
-                self.config.k6_ssh_key,
-                fallback_path,
-            )
-            resolved_path = str(fallback_path)
-            # Update config with resolved path
-            object.__setattr__(self.config, "k6_ssh_key", resolved_path)
-            # Also update K6Runner which was created with the original path
-            self._k6_runner.k6_ssh_key = resolved_path
-            return True
-        logger.error(
-            "k6_ssh_key does not exist at configured path (%s) or fallback (%s)",
-            self.config.k6_ssh_key,
-            fallback_path,
-        )
-        return False
 
     def _stop_workload(self) -> None:
         return None
 
     def _run_command(self) -> None:
-        """Execute DFaaS benchmark run."""
+        """Execute PEVA-faas benchmark run."""
         ctx = self._run_planner.prepare()
         self._annotations.annotate_run_start(ctx.run_id)
         try:
@@ -161,40 +120,49 @@ class DfaasGenerator(BaseGenerator):
             s.close()
         return ip_address
 
-    def _resolve_url_template(self, url: str, target_name: str) -> str:
+    def _resolve_url_template(self, url: str, target_name: str | None = None) -> str:
         """Resolve {host.address} in URL with best available address."""
         url = self._apply_host_placeholder(url, target_name)
         parsed = urlparse(url)
         if not parsed.scheme or not parsed.netloc:
             return url
-        return self._replace_localhost(parsed, url)
+        return self._replace_localhost(parsed, url, target_name)
 
-    def _apply_host_placeholder(self, url: str, target_name: str) -> str:
+    def _apply_host_placeholder(self, url: str, target_name: str | None) -> str:
         if "{host.address}" not in url:
             return url
-        replacement = self._exec_ctx.host_address or target_name or self._get_local_ip()
+        replacement = self._resolve_host_address(target_name)
         return url.replace("{host.address}", replacement)
 
-    def _replace_localhost(self, parsed, url: str) -> str:
+    def _replace_localhost(self, parsed, url: str, target_name: str | None) -> str:
         # Fallback for localhost replacement logic
         host = parsed.hostname
         if host not in {"127.0.0.1", "localhost", "0.0.0.0"}:
             return url
-        host_address = self._exec_ctx.host_address
+        host_address = self._resolve_host_address(target_name)
         if not host_address:
             return url
         port = parsed.port
         netloc = f"{host_address}:{port}" if port else host_address
         return urlunparse(parsed._replace(netloc=netloc))
 
-    def _resolve_prometheus_url(self, target_name: str) -> str:
-        return self._resolve_url_template(self.config.prometheus_url, target_name)
+    def _resolve_host_address(self, target_name: str | None = None) -> str:
+        if self.config.k3s_host:
+            return self.config.k3s_host
+        if self._exec_ctx.host_address:
+            return self._exec_ctx.host_address
+        if target_name:
+            return target_name
+        return self._get_local_ip()
+
+    def _resolve_prometheus_url(self) -> str:
+        return self._resolve_url_template(self.config.prometheus_url)
 
     def _build_k6_tags(self, run_id: str) -> dict[str, str]:
         tags = {key: str(value) for key, value in self.config.k6_tags.items()}
         tags["run_id"] = run_id
         tags["component"] = "k6"
-        tags["workload"] = "dfaas"
+        tags["workload"] = "peva_faas"
         tags["repetition"] = str(self._exec_ctx.repetition)
         return tags
 

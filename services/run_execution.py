@@ -34,6 +34,7 @@ class DfaasRunContext:
     base_idle: MetricsSnapshot
     target_name: str
     run_id: str
+    output_dir: Path
 
     # Result containers
     results_rows: list[dict[str, Any]] = field(default_factory=list)
@@ -102,6 +103,7 @@ class DfaasRunPlanner:
             base_idle=base_idle,
             target_name=target_name,
             run_id=run_id,
+            output_dir=output_dir,
         )
 
     def _resolve_output_dir(self) -> Path:
@@ -110,7 +112,7 @@ class DfaasRunPlanner:
         output_dir = self._load_output_dir_from_generated()
         if output_dir:
             return output_dir
-        return Path.cwd() / "benchmark_results" / "dfaas"
+        return Path.cwd() / "benchmark_results" / "peva_faas"
 
     def _load_output_dir_from_generated(self) -> Path | None:
         cfg_path = Path("benchmark_config.generated.json")
@@ -129,9 +131,9 @@ class DfaasRunPlanner:
     @staticmethod
     def _find_workload_name(workloads: dict[str, Any]) -> str:
         for name, entry in workloads.items():
-            if isinstance(entry, dict) and entry.get("plugin") == "dfaas":
+            if isinstance(entry, dict) and entry.get("plugin") == "peva_faas":
                 return name
-        return "dfaas"
+        return "peva_faas"
 
     def _load_index(
         self, output_dir: Path
@@ -390,6 +392,7 @@ class DfaasConfigExecutor:
             ctx.target_name,
             ctx.run_id,
             metric_ids,
+            output_dir=ctx.output_dir,
             outputs=self._outputs_provider(),
             tags=self._tags_provider(ctx.run_id),
         )
@@ -603,11 +606,11 @@ class DfaasResultWriter:
         return {
             "returncode": 0,
             "success": True,
-            "dfaas_functions": function_names,
-            "dfaas_results": ctx.results_rows,
-            "dfaas_skipped": ctx.skipped_rows,
-            "dfaas_index": ctx.index_rows,
-            "dfaas_summaries": ctx.summary_entries,
-            "dfaas_metrics": ctx.metrics_entries,
-            "dfaas_scripts": ctx.script_entries,
+            "peva_faas_functions": function_names,
+            "peva_faas_results": ctx.results_rows,
+            "peva_faas_skipped": ctx.skipped_rows,
+            "peva_faas_index": ctx.index_rows,
+            "peva_faas_summaries": ctx.summary_entries,
+            "peva_faas_metrics": ctx.metrics_entries,
+            "peva_faas_scripts": ctx.script_entries,
         }

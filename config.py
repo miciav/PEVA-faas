@@ -1,4 +1,4 @@
-"""DFaaS configuration models."""
+"""PEVA-faas configuration models."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ _ALLOWED_HTTP_METHODS = {
     "OPTIONS",
 }
 _DURATION_RE = re.compile(r"^(?P<value>[0-9]+)(?P<unit>ms|s|m|h)$")
-_DEFAULT_K6_WORKSPACE_ROOT = "/home/ubuntu/.dfaas-k6"
+_DEFAULT_K6_WORKSPACE_ROOT = "/home/ubuntu/.peva_faas-k6"
 _DEFAULT_QUERIES_PATH = str(Path(__file__).parent / "queries.yml")
 
 
@@ -96,10 +96,19 @@ def _load_config_data(config_path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("Config file must contain a mapping at the top level.")
     common = data.get("common", {}) or {}
-    plugin_data = data.get("plugins", {}).get("dfaas", {}) or {}
+    plugin_section = data.get("plugins", {}) or {}
+    plugin_data = plugin_section.get("peva_faas", {})
+    if not plugin_data:
+        plugin_data = plugin_section.get("dfaas", {}) or {}
+        if plugin_data:
+            warnings.warn(
+                "Config section 'plugins.dfaas' is deprecated. Use 'plugins.peva_faas'.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
     if not isinstance(common, dict) or not isinstance(plugin_data, dict):
         raise ValueError(
-            "Config sections 'common' and 'plugins.dfaas' must be mappings."
+            "Config sections 'common' and 'plugins.peva_faas' must be mappings."
         )
     return _deep_merge(common, plugin_data)
 
@@ -107,8 +116,11 @@ def _load_config_data(config_path: Path) -> dict[str, Any]:
 def _looks_like_default_queries_path(path: Path) -> bool:
     """Return True if the path matches the default repo layout."""
     normalized = tuple(part.lower() for part in path.parts)
-    tail = ("lb_plugins", "plugins", "dfaas", "queries.yml")
-    return len(normalized) >= len(tail) and normalized[-len(tail) :] == tail
+    tail_peva = ("lb_plugins", "plugins", "peva_faas", "queries.yml")
+    tail_dfaas = ("lb_plugins", "plugins", "dfaas", "queries.yml")
+    if len(normalized) >= len(tail_peva) and normalized[-len(tail_peva) :] == tail_peva:
+        return True
+    return len(normalized) >= len(tail_dfaas) and normalized[-len(tail_dfaas) :] == tail_dfaas
 
 
 class DfaasFunctionConfig(BaseModel):
@@ -272,17 +284,25 @@ class GrafanaConfig(BaseModel):
 
 
 class DfaasConfig(BasePluginConfig):
-    """Configuration for DFaaS workload generation."""
+    """Configuration for PEVA-faas workload generation."""
 
     config_path: Path | None = Field(
         default=None,
-        description="Path to YAML/JSON config with common + plugins.dfaas sections",
+        description="Path to YAML/JSON config with common + plugins.peva_faas sections",
     )
     output_dir: Path | None = Field(
         default=None,
         description="Optional output directory for DFaaS artifacts",
     )
     run_id: str | None = Field(default=None, description="Optional run identifier")
+    k3s_host: str = Field(default="127.0.0.1", description="k3s/OpenFaaS host address")
+    k3s_user: str = Field(default="ubuntu", description="SSH user for k3s host")
+    k3s_ssh_key: str = Field(
+        default="~/.ssh/id_rsa", description="SSH private key path for k3s host"
+    )
+    k3s_port: int = Field(
+        default=22, ge=1, le=65535, description="SSH port for k3s host"
+    )
     k6_host: str = Field(default="127.0.0.1", description="k6 host address")
     k6_user: str = Field(default="ubuntu", description="SSH user for k6 host")
     k6_ssh_key: str = Field(default="~/.ssh/id_rsa", description="SSH private key path")
@@ -325,7 +345,7 @@ class DfaasConfig(BasePluginConfig):
             DfaasFunctionConfig(
                 name="figlet",
                 method="POST",
-                body="Hello DFaaS!",
+                body="Hello PEVA-faas!",
                 headers={"Content-Type": "text/plain"},
             )
         ],
@@ -452,9 +472,9 @@ class DfaasConfig(BasePluginConfig):
                 f"openfaas_port and prometheus_port must be different "
                 f"(both set to {self.openfaas_port})"
             )
-        if self.openfaas_port == self.k6_port:
+        if self.openfaas_port == self.k3s_port:
             raise ValueError(
-                f"openfaas_port and k6_port (SSH) must be different "
+                f"openfaas_port and k3s_port (SSH) must be different "
                 f"(both set to {self.openfaas_port})"
             )
         return self
@@ -464,9 +484,9 @@ class DfaasConfig(BasePluginConfig):
         if self.k6_workspace_root != _DEFAULT_K6_WORKSPACE_ROOT:
             return self
         if self.k6_user == "root":
-            self.k6_workspace_root = "/root/.dfaas-k6"
+            self.k6_workspace_root = "/root/.peva_faas-k6"
         elif self.k6_user != "ubuntu":
-            self.k6_workspace_root = f"/home/{self.k6_user}/.dfaas-k6"
+            self.k6_workspace_root = f"/home/{self.k6_user}/.peva_faas-k6"
         return self
 
     @model_validator(mode="after")

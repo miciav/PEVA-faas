@@ -1,4 +1,4 @@
-"""Grafana annotation helpers for DFaaS runs."""
+"""Grafana annotation helpers for PEVA-faas runs."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DfaasAnnotationService:
-    """Coordinates Grafana annotations for DFaaS runs."""
+    """Coordinates Grafana annotations for PEVA-faas runs."""
 
     grafana_config: GrafanaConfig
     exec_ctx: ExecutionContext
@@ -61,14 +61,14 @@ class DfaasAnnotationService:
     def annotate_run_start(self, run_id: str) -> None:
         tags = self._base_tags(run_id) + ["event:run_start"]
         self._queue_annotation(
-            text=f"DFaaS run start ({run_id})",
+            text=f"PEVA-faas run start ({run_id})",
             tags=tags,
         )
 
     def annotate_run_end(self, run_id: str) -> None:
         tags = self._base_tags(run_id) + ["event:run_end"]
         self._queue_annotation(
-            text=f"DFaaS run end ({run_id})",
+            text=f"PEVA-faas run end ({run_id})",
             tags=tags,
         )
 
@@ -110,8 +110,8 @@ class DfaasAnnotationService:
     def _base_tags(self, run_id: str) -> list[str]:
         return [
             f"run_id:{run_id}",
-            "workload:dfaas",
-            "component:dfaas",
+            "workload:peva_faas",
+            "component:peva_faas",
             f"repetition:{self.exec_ctx.repetition}",
             f"host:{self.exec_ctx.host}",
             "phase:run",
