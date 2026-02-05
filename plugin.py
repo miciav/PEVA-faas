@@ -16,13 +16,13 @@ from .generator import DfaasGenerator
 class DfaasPlugin(SimpleWorkloadPlugin):
     """Plugin definition for DFaaS."""
 
-    NAME = "peva_faas"
-    DESCRIPTION = "PEVA-faas k6 + OpenFaaS workload"
+    NAME = "dfaas"
+    DESCRIPTION = "DFaaS k6 + OpenFaaS workload"
     CONFIG_CLS = DfaasConfig
     GENERATOR_CLS = DfaasGenerator
-    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
-    COLLECT_PRE_PLAYBOOK = None
-    COLLECT_POST_PLAYBOOK = None
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_global.yml"
+    COLLECT_PRE_PLAYBOOK = Path(__file__).parent / "ansible" / "collect" / "pre.yml"
+    COLLECT_POST_PLAYBOOK = Path(__file__).parent / "ansible" / "collect" / "post.yml"
     GRAFANA_ASSETS = GRAFANA_ASSETS
 
     def export_results_to_csv(
@@ -65,7 +65,8 @@ class DfaasPlugin(SimpleWorkloadPlugin):
             rep = entry.get("repetition")
             config_id = entry["config_id"]
             iteration = entry["iteration"]
-            summary_path = summary_dir / f"summary-{config_id}-iter{iteration}-rep{rep}.json"
+            summary_name = f"summary-{config_id}-iter{iteration}-rep{rep}.json"
+            summary_path = summary_dir / summary_name
             summary_path.write_text(json.dumps(entry["summary"], indent=2))
             paths.append(summary_path)
 
@@ -73,7 +74,8 @@ class DfaasPlugin(SimpleWorkloadPlugin):
             rep = entry.get("repetition")
             config_id = entry["config_id"]
             iteration = entry["iteration"]
-            metrics_path = metrics_dir / f"metrics-{config_id}-iter{iteration}-rep{rep}.csv"
+            metrics_name = f"metrics-{config_id}-iter{iteration}-rep{rep}.csv"
+            metrics_path = metrics_dir / metrics_name
             _write_csv(metrics_path, _metrics_header(functions), [entry["row"]])
             paths.append(metrics_path)
 
@@ -89,7 +91,7 @@ class DfaasPlugin(SimpleWorkloadPlugin):
 def _collect_functions(results: list[dict[str, Any]]) -> list[str]:
     for entry in results:
         gen = entry.get("generator_result") or {}
-        functions = gen.get("peva_faas_functions")
+        functions = gen.get("dfaas_functions")
         if functions:
             return list(functions)
     return []
@@ -115,14 +117,14 @@ def _collect_generator_rows(
     for entry in results:
         rep = entry.get("repetition")
         gen = entry.get("generator_result") or {}
-        results_rows.extend(gen.get("peva_faas_results", []))
-        skipped_rows.extend(gen.get("peva_faas_skipped", []))
-        index_rows.extend(gen.get("peva_faas_index", []))
-        for summary in gen.get("peva_faas_summaries", []):
+        results_rows.extend(gen.get("dfaas_results", []))
+        skipped_rows.extend(gen.get("dfaas_skipped", []))
+        index_rows.extend(gen.get("dfaas_index", []))
+        for summary in gen.get("dfaas_summaries", []):
             summary_with_rep = dict(summary)
             summary_with_rep["repetition"] = rep
             summaries.append(summary_with_rep)
-        for metric in gen.get("peva_faas_metrics", []):
+        for metric in gen.get("dfaas_metrics", []):
             metric_row = _flatten_metrics(metric.get("metrics", {}))
             metrics.append(
                 {
@@ -132,7 +134,7 @@ def _collect_generator_rows(
                     "row": metric_row,
                 }
             )
-        scripts.extend(gen.get("peva_faas_scripts", []))
+        scripts.extend(gen.get("dfaas_scripts", []))
 
     return (
         results_rows,

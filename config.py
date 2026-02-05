@@ -42,7 +42,7 @@ _ALLOWED_HTTP_METHODS = {
     "OPTIONS",
 }
 _DURATION_RE = re.compile(r"^(?P<value>[0-9]+)(?P<unit>ms|s|m|h)$")
-_DEFAULT_K6_WORKSPACE_ROOT = "/home/ubuntu/.peva_faas-k6"
+_DEFAULT_K6_WORKSPACE_ROOT = "/home/ubuntu/.dfaas-k6"
 _DEFAULT_QUERIES_PATH = str(Path(__file__).parent / "queries.yml")
 
 
@@ -57,6 +57,37 @@ def _deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, An
     return merged
 
 
+def _normalize_validator_values(values: Any, model_cls: type[BaseModel]) -> Any:
+    if isinstance(values, model_cls):
+        return values
+    if values is None:
+        return {}
+    if not isinstance(values, dict):
+        return values
+    return values
+
+
+def _set_env_bool(values: dict[str, Any], key: str, env_var: str) -> None:
+    if values.get(key) is None:
+        env_value = parse_bool_env(os.environ.get(env_var))
+        if env_value is not None:
+            values[key] = env_value
+
+
+def _set_env_str(values: dict[str, Any], key: str, env_var: str) -> None:
+    if not values.get(key):
+        env_value = os.environ.get(env_var)
+        if env_value:
+            values[key] = env_value
+
+
+def _set_env_int(values: dict[str, Any], key: str, env_var: str) -> None:
+    if values.get(key) is None:
+        env_value = parse_int_env(os.environ.get(env_var))
+        if env_value is not None:
+            values[key] = env_value
+
+
 def _load_config_data(config_path: Path) -> dict[str, Any]:
     """Load and merge config from YAML file."""
     if not config_path.exists():
@@ -65,10 +96,10 @@ def _load_config_data(config_path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("Config file must contain a mapping at the top level.")
     common = data.get("common", {}) or {}
-    plugin_data = data.get("plugins", {}).get("peva_faas", {}) or {}
+    plugin_data = data.get("plugins", {}).get("dfaas", {}) or {}
     if not isinstance(common, dict) or not isinstance(plugin_data, dict):
         raise ValueError(
-            "Config sections 'common' and 'plugins.peva_faas' must be mappings."
+            "Config sections 'common' and 'plugins.dfaas' must be mappings."
         )
     return _deep_merge(common, plugin_data)
 
@@ -76,7 +107,7 @@ def _load_config_data(config_path: Path) -> dict[str, Any]:
 def _looks_like_default_queries_path(path: Path) -> bool:
     """Return True if the path matches the default repo layout."""
     normalized = tuple(part.lower() for part in path.parts)
-    tail = ("lb_plugins", "plugins", "peva_faas", "queries.yml")
+    tail = ("lb_plugins", "plugins", "dfaas", "queries.yml")
     return len(normalized) >= len(tail) and normalized[-len(tail) :] == tail
 
 
@@ -201,24 +232,13 @@ class DfaasLokiConfig(BaseModel):
 
         Priority: config file > environment variables > defaults.
         """
-        if isinstance(values, cls):
-            return values
-        if values is None:
-            values = {}
+        values = _normalize_validator_values(values, cls)
         if not isinstance(values, dict):
             return values
 
         # Only apply env vars as fallbacks when config doesn't specify a value
-        if values.get("enabled") is None:
-            env_enabled = parse_bool_env(os.environ.get("LB_LOKI_ENABLED"))
-            if env_enabled is not None:
-                values["enabled"] = env_enabled
-
-        if not values.get("endpoint"):
-            env_endpoint = os.environ.get("LB_LOKI_ENDPOINT")
-            if env_endpoint:
-                values["endpoint"] = env_endpoint
-
+        _set_env_bool(values, "enabled", "LB_LOKI_ENABLED")
+        _set_env_str(values, "endpoint", "LB_LOKI_ENDPOINT")
         return values
 
 
@@ -239,34 +259,15 @@ class GrafanaConfig(BaseModel):
 
         Priority: config file > environment variables > defaults.
         """
-        if isinstance(values, cls):
-            return values
-        if values is None:
-            values = {}
+        values = _normalize_validator_values(values, cls)
         if not isinstance(values, dict):
             return values
 
         # Only apply env vars as fallbacks when config doesn't specify a value
-        if values.get("enabled") is None:
-            env_enabled = parse_bool_env(os.environ.get("LB_GRAFANA_ENABLED"))
-            if env_enabled is not None:
-                values["enabled"] = env_enabled
-
-        if not values.get("url"):
-            env_url = os.environ.get("LB_GRAFANA_URL")
-            if env_url:
-                values["url"] = env_url
-
-        if values.get("api_key") is None:
-            env_api_key = os.environ.get("LB_GRAFANA_API_KEY")
-            if env_api_key:
-                values["api_key"] = env_api_key
-
-        if values.get("org_id") is None:
-            env_org = parse_int_env(os.environ.get("LB_GRAFANA_ORG_ID"))
-            if env_org is not None:
-                values["org_id"] = env_org
-
+        _set_env_bool(values, "enabled", "LB_GRAFANA_ENABLED")
+        _set_env_str(values, "url", "LB_GRAFANA_URL")
+        _set_env_str(values, "api_key", "LB_GRAFANA_API_KEY")
+        _set_env_int(values, "org_id", "LB_GRAFANA_ORG_ID")
         return values
 
 
@@ -275,21 +276,13 @@ class DfaasConfig(BasePluginConfig):
 
     config_path: Path | None = Field(
         default=None,
-        description="Path to YAML/JSON config with common + plugins.peva_faas sections",
+        description="Path to YAML/JSON config with common + plugins.dfaas sections",
     )
     output_dir: Path | None = Field(
         default=None,
         description="Optional output directory for DFaaS artifacts",
     )
     run_id: str | None = Field(default=None, description="Optional run identifier")
-    k3s_host: str = Field(
-        default="127.0.0.1", description="k3s/OpenFaaS host address"
-    )
-    k3s_user: str = Field(default="ubuntu", description="SSH user for k3s host")
-    k3s_ssh_key: str = Field(
-        default="~/.ssh/id_rsa", description="SSH private key for k3s host"
-    )
-    k3s_port: int = Field(default=22, ge=1, le=65535, description="SSH port")
     k6_host: str = Field(default="127.0.0.1", description="k6 host address")
     k6_user: str = Field(default="ubuntu", description="SSH user for k6 host")
     k6_ssh_key: str = Field(default="~/.ssh/id_rsa", description="SSH private key path")
@@ -311,7 +304,9 @@ class DfaasConfig(BasePluginConfig):
     )
     k6_tags: dict[str, str] = Field(
         default_factory=dict,
-        description="Additional k6 tags merged with run_id/component/workload/repetition",
+        description=(
+            "Additional k6 tags merged with run_id/component/workload/repetition"
+        ),
     )
     openfaas_port: int = Field(
         default=31112, ge=1, le=65535, description="OpenFaaS gateway NodePort"
@@ -343,7 +338,9 @@ class DfaasConfig(BasePluginConfig):
     )
     rates: DfaasRatesConfig | None = Field(
         default=None,
-        description="DEPRECATED: Use rate_strategy instead. Kept for backward compatibility.",
+        description=(
+            "DEPRECATED: Use rate_strategy instead. Kept for backward compatibility."
+        ),
     )
     combinations: DfaasCombinationConfig = Field(
         default_factory=DfaasCombinationConfig,
@@ -467,9 +464,9 @@ class DfaasConfig(BasePluginConfig):
         if self.k6_workspace_root != _DEFAULT_K6_WORKSPACE_ROOT:
             return self
         if self.k6_user == "root":
-            self.k6_workspace_root = "/root/.peva_faas-k6"
+            self.k6_workspace_root = "/root/.dfaas-k6"
         elif self.k6_user != "ubuntu":
-            self.k6_workspace_root = f"/home/{self.k6_user}/.peva_faas-k6"
+            self.k6_workspace_root = f"/home/{self.k6_user}/.dfaas-k6"
         return self
 
     @model_validator(mode="after")
