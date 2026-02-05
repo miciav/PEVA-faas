@@ -102,7 +102,8 @@ def _load_config_data(config_path: Path) -> dict[str, Any]:
         plugin_data = plugin_section.get("dfaas", {}) or {}
         if plugin_data:
             warnings.warn(
-                "Config section 'plugins.dfaas' is deprecated. Use 'plugins.peva_faas'.",
+                "Config section 'plugins.dfaas' is deprecated. "
+                "Use 'plugins.peva_faas'.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -120,7 +121,10 @@ def _looks_like_default_queries_path(path: Path) -> bool:
     tail_dfaas = ("lb_plugins", "plugins", "dfaas", "queries.yml")
     if len(normalized) >= len(tail_peva) and normalized[-len(tail_peva) :] == tail_peva:
         return True
-    return len(normalized) >= len(tail_dfaas) and normalized[-len(tail_dfaas) :] == tail_dfaas
+    return (
+        len(normalized) >= len(tail_dfaas)
+        and normalized[-len(tail_dfaas) :] == tail_dfaas
+    )
 
 
 class DfaasFunctionConfig(BaseModel):

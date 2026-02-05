@@ -248,7 +248,7 @@ class K6Runner:
         )
         check_line = (
             '  check(res, { "status is 2xx": (r) => r.status >= 200 && '
-            'r.status < 300 });'
+            "r.status < 300 });"
         )
 
         return [

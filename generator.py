@@ -194,9 +194,7 @@ class DfaasGenerator(BaseGenerator):
             "--tls-no-verify",
         ]
         try:
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, check=True
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         except subprocess.CalledProcessError as exc:
             logger.error("faas-cli list failed: %s", exc)
             return replicas
